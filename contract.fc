@@ -1,0 +1,157 @@
+int randomRoshambo() inline {
+  return rand(3); ;; returns random int form 0 to 2
+}
+
+;; ---- Store utils ----
+
+(int, int, int) loadData() {
+  var cs = get_data().begin_parse();
+  var res = (
+    cs~load_uint(32), ;; seqno
+    cs~load_uint(256), ;; pub key
+    cs~load_grams() ;; bet amount
+  );
+  cs.end_parse();
+  return res;
+}
+
+() storeData(
+  int seqno,
+  int pubKey,
+  int betAmount
+  ;; int playedGames,
+  ;; int wonGames,
+  ;; int lostGames
+) impure {
+  set_data(
+    begin_cell()
+    .store_uint(seqno, 32)
+    .store_uint(pubKey, 256)
+    .store_grams(betAmount)
+  ;;  .store_uint(playedGames, 64)
+  ;;  .store_uint(wonGames, 64)
+  ;;  .store_uint(lostGames, 64)
+    .end_cell()
+  );
+}
+
+(int) loadBet() impure {
+  var cs = get_data()
+    .begin_parse()
+    .skip_bits(32)  ;; seqno
+    .skip_bits(256); ;; pub key
+  return (cs~load_grams());
+}
+
+;; ---- Smart contract main code ----
+
+() processGameResult(int query_id, slice s_addr, int value, int myRoshambo, int mode) impure {
+  send_raw_message(
+    begin_cell()
+      ;; int_msg_info$0 ihr_disabled:Bool bounce:Bool bounced:Bool src:MsgAddress(addr_none$00) -> 011000 -> 0x18
+      .store_uint(0x18, 6)
+      .store_slice(s_addr)
+      .store_grams(value)
+      .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+      .store_uint(0xff000001, 32) ;; game result flag?
+      .store_uint(query_id, 64)
+      .store_int(myRoshambo, 8)
+    .end_cell(),
+
+    ;; msg mode
+    ;; +2 - ignore errors
+    ;; +1 - pay fees
+    ;; +64 - return received amount + add prize
+    mode
+  );
+}
+
+() recv_internal(int msg_value, cell in_msg_cell, slice in_msg) impure {
+  var cs = in_msg_cell.begin_parse();
+  var flags = cs~load_uint(4);  ;; int_msg_info$0 ihr_disabled:Bool bounce:Bool bounced:Bool
+  if(flags & 1) {
+    ;; ignore all bounced messages
+    return ();
+  }
+
+  if( in_msg.slice_empty?() ) {
+    ;; inbound message has empty body - just fill balance for prizes
+    return ();
+  }
+
+  int op = in_msg~load_uint(32);
+  if(op == 0) {
+    ;; simple transfer with comment - just fill balance for prizes
+    return ();
+  }
+
+  var betAmount = loadBet();
+  ;; send money back
+  throw_unless(100, msg_value == betAmount);
+
+  var s_addr = cs~load_msg_addr();
+  int query_id = in_msg~load_uint(64);
+
+  int playerRoshambo = in_msg~load_int(8);
+  throw_if(104, (playerRoshambo > 2) | (playerRoshambo < 0)); ;; only 0 1 2
+  randomize_lt();
+  int myRoshambo = randomRoshambo();
+
+  ;; rules: 0 < 1, 1 < 2, 2 < 0
+  ;; msg mode
+  ;; +1 - pay fees
+  ;; +2 - ignore errors (?)
+  ;; +64 - return received amount + add prize
+  if(myRoshambo == playerRoshambo) {
+    ;; if equals than return the betAmount back (or replay?)
+    return processGameResult(query_id, s_addr, msg_value, myRoshambo, 62 + 2);
+  } elseif(((myRoshambo - 1) == playerRoshambo) | ((myRoshambo == 0) & (playerRoshambo == 2))) {
+    ;; player looses
+    return processGameResult(query_id, s_addr, 0, myRoshambo, 1 + 2);
+  } else {
+    ;; player wins and gets betAmount * 2
+    return processGameResult(query_id, s_addr, msg_value * 2, myRoshambo, 64 + 2);
+  }
+}
+
+() recv_external(slice in_msg) impure {
+  slice signature = in_msg~load_bits(512);
+  var cs = in_msg~load_ref().begin_parse();
+
+  slice ds = get_data().begin_parse();
+  (int storedSeqno, int pubKey) = (ds~load_uint(32), ds~load_uint(256));
+
+  int csHash = slice_hash(cs);
+  throw_unless(101, check_signature(csHash, signature, pubKey));
+
+  int seqno = cs~load_uint(32);
+  throw_unless(102, seqno == storedSeqno);
+
+  accept_message();
+
+  int method = cs~load_uint(8);
+  if(method == 0) { ;; default op to normal exit
+    return();
+  } elseif(method == 1) { ;; withdraw
+    slice addr = cs~load_msg_addr();
+    int amount = cs~load_grams();
+
+    withdraw(addr, amount);
+    ;; updateWithdrawnAmount(amount);
+  } else { ;; invalid method
+    throw_if(103, true);
+  }
+}
+
+;; ---- Smart contract main code end ----
+
+;; Get methods
+
+int seqno() method_id {
+  return get_data().begin_parse().preload_uint(32);
+}
+
+int betAmount() method_id {
+  var betAmount = loadBet();
+  return betAmount;
+}
