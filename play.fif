@@ -1,0 +1,40 @@
+#!/usr/bin/env fift -s
+
+"TonUtil.fif" include
+
+{
+  ."Script build internal message BOC for playing in roshambo" cr
+  ."Arguments: " cr
+  ."N - choose your turn as a number, there" cr
+  ."   0 - is a scissor" cr
+  ."   1 - is a rock" cr
+  ."   2 - is a paper" cr
+  1 halt
+} : usage
+
+10 =: op
+-1 =: n
+now =: queryId
+
+$# 1 = ' usage ifnot
+
+$1 parse-int =: n
+n 0 < @' n 36 > or ' usage if
+
+."op: " op . cr
+."n: " n . cr
+."query id: " queryId . cr
+
+"play-query.boc" =: bocFile
+
+<b
+  op 32 u,
+  queryId 64 u,
+  n 8 i,
+b> =: message
+
+// flag 2 - add crc32-c
+message 2 boc+>B
+bocFile B>file
+
+."New play query saved to " bocFile type cr

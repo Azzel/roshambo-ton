@@ -1,0 +1,41 @@
+#!/usr/bin/env fift -s
+
+"new-contract.fif" include
+
+
+// Extended version of `runvm` word. Allows execution of custom methods (not only `main`).
+{
+  <{
+    // Simulate SmartContractInfo in the c7 register
+    0 PUSHINT
+    0 PUSHINT
+    0 PUSHINT
+    now PUSHINT
+    4 TUPLE
+    SINGLE
+    c7 POP
+  }>s rot <s |+ swap
+
+  runvm
+} : runvm()
+
+."Debug contract start" cr
+
+<b
+  // Body start
+  contractSignature B,
+  messageBody ref, // message cell
+b> =: signedMessage
+
+// code and initData are obtained from new-contract.fif
+signedMessage <s recv_external code initData runvm()
+
+=: NewData
+=: ExitCode
+
+."Exit code: " ExitCode . cr
+."Updated data: " cr NewData <s csr. cr
+
+."Saving updated data to contract-data-0.boc" cr
+
+NewData 2 boc+>B "contract-data-0.boc" B>file

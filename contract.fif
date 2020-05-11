@@ -1,0 +1,107 @@
+// automatically generated from `../../ton/crypto/smartcont/stdlib.fc` `contract.fc` 
+PROGRAM{
+  DECLPROC processGameResult
+  DECLPROC recv_internal
+  DECLPROC recv_external
+  processGameResult PROC:<{
+    4278190081 PUSHINT
+    0 PUSHINT
+    24 PUSHINT
+    NEWC
+    6 STU
+    s0 s6 XCHG2
+    STSLICER
+    s0 s4 XCHG2
+    STGRAMS
+    s1 s4 XCHG
+    107 STU
+    s1 s2 XCHG
+    32 STU
+    s1 s3 XCHG
+    64 STU
+    s1 s2 XCHG
+    8 STI
+    ENDC
+    SWAP
+    SENDRAWMSG
+  }>
+  recv_internal PROC:<{
+    SWAP
+    CTOS
+    4 LDU
+    SWAP
+    1 PUSHINT
+    AND
+    IFJMP:<{
+      3 BLKDROP
+    }>
+    OVER
+    SEMPTY
+    IFJMP:<{
+      3 BLKDROP
+    }>
+    SWAP
+    32 LDU
+    SWAP
+    0 EQINT
+    IFJMP:<{
+      3 BLKDROP
+    }>
+    s2 PUSH
+    1000000000 PUSHINT
+    GREATER
+    100 THROWIF
+    SWAP
+    LDMSGADDR
+    DROP
+    SWAP
+    64 LDU
+    LTIME
+    ADDRAND
+    3 PUSHINT
+    RAND
+    SWAP
+    8 LDI
+    DROP
+    DUP
+    2 GTINT
+    OVER
+    0 LESSINT
+    OR
+    104 THROWIF
+    2DUP
+    EQUAL
+    IFJMP:<{
+      DROP
+      s1 s3 XCHG
+      64 PUSHINT
+      processGameResult CALLDICT
+    }>
+    OVER
+    DEC
+    OVER
+    EQUAL
+    s2 PUSH
+    0 EQINT
+    s0 s2 XCHG
+    2 EQINT
+    s1 s2 XCHG
+    AND
+    OR
+    IFJMP:<{
+      s3 POP
+      0 PUSHINT
+      s0 s3 XCHG2
+      3 PUSHINT
+      processGameResult CALLDICT
+    }>
+    s0 s3 XCHG
+    1 LSHIFT#
+    s0 s3 XCHG2
+    66 PUSHINT
+    processGameResult CALLDICT
+  }>
+  recv_external PROC:<{
+    DROP
+  }>
+}END>c

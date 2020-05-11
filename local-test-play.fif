@@ -1,0 +1,86 @@
+#!/usr/bin/env fift -s
+
+"TonUtil.fif" include
+"Asm.fif" include
+
+// Extended version of `runvm` word. Allows execution of custom methods (not only `main`).
+{
+  <{
+    // Simulate SmartContractInfo in the c7 register
+    0 PUSHINT
+    0 PUSHINT
+    0 PUSHINT
+    now PUSHINT
+    4 TUPLE
+    SINGLE
+    c7 POP
+  }>s rot <s |+ swap
+
+  runvm
+} : runvm()
+
+{
+  ."Local test of Roshambo internal message" cr
+  ."Arguments: " cr
+  ."N - choose your turn as a number, there" cr
+  ."   0 - is a scissor" cr
+  ."   1 - is a rock" cr
+  ."   2 - is a paper" cr
+  1 halt
+} : usage
+
+10 =: op
+-1 =: n
+now =: queryId
+
+$# 1 = ' usage ifnot
+
+$1 parse-int =: n
+n 0 < @' n 36 > or ' usage if
+
+."op: " op . cr
+."n: " n . cr
+."query id: " queryId . cr
+
+."Debug play start" cr
+
+"contract.fif" include =: Code
+
+"contract-data-0.boc" file>B B>boc =: OldData
+."Old data: " cr OldData <s csr. cr
+
+// "play-query.boc" file>B B>boc =: Message
+<b
+  op 32 u,
+  queryId 64 u,
+  n 8 i,
+b> =: Message
+
+."play message: " cr Message <s csr. cr
+
+500000000 =: MessageValue // 0.5 Gram
+."play value: " MessageValue .GR cr
+
+Basechain 0xcaafcfd13d4b0bcf71bc8530bb7b49015fbb8bdf61686722cbd69e75a0f3e858
+2constant SrcAddr
+ ."Contract address = " SrcAddr 2dup .addr cr 6 .Addr cr
+
+<b
+  2 4 u, // int_msg_info$0 ihr_disabled:Bool bounce:Bool bounced:Bool
+  4 3 u, // addr_std$10 anycast:(Maybe Anycast)
+  SrcAddr addr,
+  // TODO: write other fields
+b> =: MessageCell
+
+MessageValue MessageCell Message <s recv_internal Code OldData runvm()
+
+=: NewData
+=: ExitCode
+
+."Exit code: " ExitCode . cr
+
+// contract have no data
+// ."Updated data: " cr NewData <s csr. cr
+
+// ."Saving updated data to contract-data-1.boc" cr
+// NewData 2 boc+>B "contract-data-1.boc" B>file
